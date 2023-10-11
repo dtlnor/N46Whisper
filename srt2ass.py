@@ -6,7 +6,7 @@
 
 import sys
 import os
-import regex as re
+import re
 import codecs
 
 
@@ -26,7 +26,7 @@ def fileopen(input_file):
     return [srt_src, enc]
 
 
-def srt2ass(input_file,sub_style, is_split, split_method):
+def srt2ass(input_file, sub_style = "default", is_split = "No", split_method = "Modest"):
     if '.ass' in input_file:
         return input_file
 
