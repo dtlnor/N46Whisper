@@ -162,3 +162,4 @@ cython_debug/
 # subtitle
 *.srt
 *.ass
+.DS_Store
