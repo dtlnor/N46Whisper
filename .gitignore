@@ -162,4 +162,12 @@ cython_debug/
 # subtitle
 *.srt
 *.ass
+
+# multimedia
+*.m4a
+*.mp3
+*.mp4
+*.mkv
+
+# misc.
 .DS_Store
