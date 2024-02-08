@@ -14,11 +14,11 @@ from pathlib import Path
 
 # import sys
 import pysubs2
+from srt2ass import srt2ass
 
 # @title **从本地上传文件(可多选）/Upload Local File（Can select multiple)**
 # @markdown <font size="2">If use file in google drive, ignore this cell and move to the next.
 # @markdown <br/>若已选择谷歌盘中的文件，则跳过此步执行下一单元格。</font>
-# use_drive = False
 file_names = [R"C:\Users\dtlnor\OKEGui\tools\x26x\day2Recording2_muxed.mp4"]
 
 # @title **通用参数/Required settings:**
@@ -32,11 +32,11 @@ file_type = "audio"  # @param ["audio","video"]
 
 # @markdown <font size="2">Model size will affect the processing time and transcribe quality.
 # @markdown <br/>The default source language is Japanese.Please input your own source language if applicable.Use two letter language code， e.g.  'en', 'ja'...
-# @markdown <br/>模型大小将影响转录时间和质量, 默认使用最新发布的large-v2模型以节省试错时间
-# @markdown <br/>默认识别语言为日语，若使用其它语言的视频请自行输入即可。请注意：使用两字母语言代码如'en'，'ja', 'zh'
-# @markdown <br/>请注意：large-v2在某些情况下可能未必优于large-v1，请用户自行选择
+# @markdown <br/>模型大小将影响转录时间和质量, **默认使用稳定的large-v2模型以节省时间**
+# @markdown <br/>默认识别语言为日语，若使用其它语言的视频请自行输入即可。请注意：使用两字母语言代码如'en'，'ja'
+# @markdown <br/>【请注意】：large-v3在某些情况下可能未必优于large-v2或更早的模型，请用户自行选择
 
-model_size = "large-v2"  # @param ["base","small","medium", "large-v1","large-v2"]
+model_size = "large-v3"  # @param ["base","small","medium", "large-v1","large-v2","large-v3"]
 language = "zh"  # @param {type:"string"}
 
 # print(tokenizer._LANGUAGE_CODES)
@@ -73,9 +73,32 @@ sub_style = "default"  # @param ["default", "ikedaCN", "kaedeCN","sugawaraCN","t
 is_vad_filter = "False"  # @param ["True", "False"]
 # @markdown  <font size="2"> *  The default <font size="3">  ```min_silence_duration``` <font size="2"> is set at 1000 ms in N46Whisper
 
-# @title **运行Whisper/Run Whisper**
-# @markdown 完成后ass文件将自动下载到本地/ass file will be auto downloaded after finish.
+# @markdown **设置Beam Size**
 
+# @markdown <font size="2">Beam Size数值越高，在识别时探索的路径越多，这在一定范围内可以帮助提高识别准确性，但是相对的VRAM使用也会更高. 同时，Beam Size在超过5-10后有可能降低精确性，详情请见https://arxiv.org/pdf/2204.05424.pdf
+# @markdown <br/> 默认设置为 5
+set_beam_size = 5 #@param
+
+# # @markdown <font size="2">设置此参数为True将在代码执行完毕后自动断开Colab的连接。这有助于在长时间运行的任务完成后释放资源。请注意，断开连接后，所有未保存的数据将丢失。</font>
+# # @markdown <br/> 默认设置为 False
+# auto_disconnect = True #@param {type:"boolean"}
+
+# # 以下代码用于断开连接
+# from IPython.display import Javascript
+
+# def disconnect_runtime():
+#     if auto_disconnect:
+#         display(Javascript('google.colab.kernel.disconnect();'))
+#         print("已经自动断开连接。")
+#     else:
+#         print("自动断开连接功能已关闭。")
+
+
+# @title **运行Whisper/Run Whisper**
+# Hugging Face Hub
+# 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
+
+# @markdown 完成后ass文件将自动下载到本地/ass file will be auto downloaded after finish.
 print("语音识别库配置完毕，将开始转换")
 
 # import gc
@@ -112,9 +135,10 @@ for i, (file_name, file_basename) in enumerate(zip(file_names, file_basenames)):
     # print(file_basename)
     tic = time.time()
     print("识别中 Transcribe in progress...")
+
     segments, info = model.transcribe(
         audio=file_name if file_type == "audio" else f"{file_basename}.m4a",
-        beam_size=5,
+        beam_size=set_beam_size,
         language=language,
         word_timestamps=False,
         vad_filter=is_vad_filter,
@@ -138,13 +162,11 @@ for i, (file_name, file_basename) in enumerate(zip(file_names, file_basenames)):
     print(f"Time consumpution {toc-tic}s")
 
     subs = pysubs2.load_from_whisper(results)
-    subs.save(file_basename + ".srt")
+    srt_filename = file_basename + '.srt'
+    subs.save(srt_filename)
 
-    from srt2ass import srt2ass
-
-    ass_sub = srt2ass(file_basename + ".srt", sub_style, is_split, split_method)
-    print("ASS subtitle saved as: " + ass_sub)
-    # files.download(ass_sub)
+    ass_filename = srt2ass(srt_filename, sub_style, is_split, split_method)
+    print("ASS subtitle saved as: " + ass_filename)
 
     if export_srt == "Yes":
         pass
@@ -157,7 +179,19 @@ print("所有字幕生成完毕 All done!")
 
 use_openai_translate = False
 if use_openai_translate:
-    import openai
+    from openai import OpenAI
+    # import sys
+    # import os
+
+    # import re
+    # import time
+
+    # import codecs
+    # import regex as re
+    # from pathlib import Path
+    # from tqdm import tqdm
+    # from google.colab import files
+    # from IPython.display import clear_output
 
     # @title **【实验功能】Experimental Features:**
 
@@ -193,18 +227,8 @@ if use_openai_translate:
     # @markdown ```Please do not translate people's name and leave it as original language.```</br>
     output_format = "ass"  # @param ["ass","srt"]
 
-    import sys
-    import os
-
-    # import re
-    import time
-
-    # import codecs
-    # import regex as re
-    from pathlib import Path
-    from tqdm import tqdm
-    # from google.colab import files
-    # from IPython.display import clear_output
+    openai_model = "gpt-3.5-turbo"
+    openai_base_url = None
 
     # clear_output()
 
@@ -218,7 +242,7 @@ if use_openai_translate:
 
     # clear_output()
 
-    class ChatGPTAPI:
+    class ChatGPTAPI():
         def __init__(self, key, language, prompt, temperature):
             self.key = key
             # self.keys = itertools.cycle(key.split(","))
@@ -227,67 +251,71 @@ if use_openai_translate:
             self.prompt = prompt
             self.temperature = temperature
 
+
         # def rotate_key(self):
         #     openai.api_key = next(self.keys)
 
         def translate(self, text):
             # print(text)
             # self.rotate_key()
-            openai.api_key = self.key
+            client = OpenAI(
+                    api_key=self.key,
+                    base_url=openai_base_url
+                )
+
             try:
-                completion = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
+                completion = client.chat.completions.create(
+                    model=openai_model,
                     messages=[
                         {
                             "role": "system",
                             # english prompt here to save tokens
                             "content": f"{self.prompt}",
                         },
-                        {"role": "user", "content": f"Original text:`{text}`. Target language: {self.language}"},
+                        {
+                            "role":"user",
+                            "content": f"Original text:`{text}`. Target language: {self.language}"
+                        },
                     ],
                     temperature=self.temperature,
                 )
                 t_text = (
-                    completion["choices"][0]
-                    .get("message")
-                    .get("content")
-                    .encode("utf8")
-                    .decode()
+                    completion.choices[0].message.content.encode("utf8").decode()
                 )
-                total_tokens = completion["usage"]["total_tokens"]  # include prompt_tokens and completion_tokens
+                total_tokens = completion.usage.total_tokens # include prompt_tokens and completion_tokens
             except Exception as e:
                 # TIME LIMIT for open api , pay to reduce the waiting time
                 sleep_time = int(60 / self.key_len)
                 time.sleep(sleep_time)
                 print(e, f"will sleep  {sleep_time} seconds")
                 # self.rotate_key()
-                openai.api_key = self.key
-                completion = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
+                client = OpenAI(
+                    api_key=self.key,
+                    base_url=openai_base_url,
+                )
+                completion = client.chat.completions.create(
+                    model=openai_model,
                     messages=[
                         {
                             "role": "system",
-                            "content": f"{self.prompt}"
+                            "content": f'{self.prompt}'
                         },
                         {
                             "role": "user",
                             "content": f"Original text:`{text}`. Target language: {self.language}"
                         }
                     ],
-                    temperature=self.temperature,
+                    temperature=self.temperature
                 )
                 t_text = (
-                    completion["choices"][0]
-                    .get("message")
-                    .get("content")
-                    .encode("utf8")
-                    .decode()
+                    completion.choices[0].message.content.encode("utf8").decode()
                 )
-            total_tokens = completion["usage"]["total_tokens"]
+            total_tokens = completion.usage.total_tokens
             return t_text, total_tokens
 
-    class SubtitleTranslator:
-        def __init__(self, sub_src, model, key, language, prompt, temperature):
+
+    class SubtitleTranslator():
+        def __init__(self, sub_src, model, key, language, prompt,temperature):
             self.sub_src = sub_src
             self.translate_model = model(key, language, prompt, temperature)
             self.translations = []
@@ -300,7 +328,7 @@ if use_openai_translate:
         def translate_by_line(self):
             sub_trans = pysubs2.load(self.sub_src)
             total_lines = len(sub_trans)
-            for line in tqdm(sub_trans, total=total_lines):
+            for line in tqdm(sub_trans, total = total_lines):
                 line_trans, tokens_per_task = self.translate_model.translate(line.text)
                 line.text += r"\N" + line_trans
                 print(line_trans)
@@ -317,21 +345,23 @@ if use_openai_translate:
     OPENAI_API_KEY = openai_key
 
     if not OPENAI_API_KEY:
-        raise Exception("OpenAI API key not provided, please google how to obtain it")
+        raise Exception(
+            "OpenAI API key not provided, please google how to obtain it"
+        )
     # else:
     #     OPENAI_API_KEY = openai_key
 
     t = SubtitleTranslator(
         sub_src=sub_name,
-        model=translate_model,
-        key=OPENAI_API_KEY,
+        model= translate_model,
+        key = OPENAI_API_KEY,
         language=target_language,
         prompt=prompt,
-        temperature=temperature
-    )
+        temperature=temperature)
 
     translation, _, total_token = t.translate_by_line()
     total_price = t.calculate_price(total_token)
+
     # Download ass file
 
     if output_format == "ass":
@@ -345,5 +375,5 @@ if use_openai_translate:
     print(f"Total number of tokens used: {total_token}")
     print(f"Total price (USD): ${total_price:.4f}")
 
-    # @markdown **</br>**<font size='4'>**实验功能的开发亦是为了尝试帮助大家更有效率的制作字幕。但是只有在用户实际使用体验反馈的基础上，此应用才能不断完善，如果您有任何想法，都欢迎以任何方式联系我，提出[issue](https://github.com/Ayanaminn/N46Whisper/issues)或者分享在[讨论区](https://github.com/Ayanaminn/N46Whisper/discussions)。**
-    # @markdown **</br>**<font size='4'>**The efficacy of this application cannot get improved without the feedbacks from everyday users.Please feel free to share your thoughts with me or post it [here](https://github.com/Ayanaminn/N46Whisper/discussions)**
+    # @markdown **</br>**<font size='3'>**实验功能的开发亦是为了尝试帮助大家更有效率的制作字幕。但是只有在用户实际使用体验反馈的基础上，此应用才能不断完善，如果您有任何想法，都欢迎以任何方式联系我，提出[issue](https://github.com/Ayanaminn/N46Whisper/issues)或者分享在[讨论区](https://github.com/Ayanaminn/N46Whisper/discussions)。**
+    # @markdown **</br>**<font size='3'>**The efficacy of this application cannot get improved without the feedbacks from everyday users.Please feel free to share your thoughts with me or post it [here](https://github.com/Ayanaminn/N46Whisper/discussions)**
